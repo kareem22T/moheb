@@ -1,0 +1,56 @@
+{
+    "EN": {
+        "nav": {
+            "link_1": "About",
+            "link_2": "Contact",
+            "welcome": "welcome"
+        },
+        "alert_bio": {
+            "welcome": "Welcome!",
+            "title": "Bio About Our Team And The word of the founder of our website",
+            "more": "More About Us >>"
+        },
+        "sections": {
+            "view_all": "View All",
+            "football": "Football",
+            "most_popular": "Most Popular Sports",
+            "last_difinations": "Last Updated Difinations",
+            "last_news": "Last News"
+        },
+        "footer": {
+            "nav": {
+                "link_1": "Privacy Policy",
+                "link_2": "Cookie Policy",
+                "link_3": "Contact Us"
+            },
+            "copy": "Powerd by Center de Paris"
+        }
+    },
+    "ar": {
+        "nav": {
+            "link_1": "About",
+            "link_2": "Contact",
+            "welcome": "welcome"
+        },
+        "alert_bio": {
+            "welcome": "Welcome!",
+            "title": "Bio About Our Team And The word of the founder of our website",
+            "more": "More About Us >>"
+        },
+        "sections": {
+            "view_all": "View All",
+            "football": "Football",
+            "most_popular": "Most Popular Sports",
+            "last_difinations": "Last Updated Difinations",
+            "last_news": "Last News"
+        },
+        "footer": {
+            "nav": {
+                "link_1": "Privacy Policy",
+                "link_2": "Cookie Policy",
+                "link_3": "Contact Us"
+            },
+            "copy": "Powerd by Center de Paris"
+        }
+    }
+}
