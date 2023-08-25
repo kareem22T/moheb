@@ -94,7 +94,7 @@
     <div class="pop-up delete_pop_up card w-50" style="margin: auto; display: none;"  :class="{ 'show': delete_pop_up }" v-if="delete_pop_up">
         <div class="card-body">
             <form @submit.prevent>
-                <h5 class="mb-3 text-center">Are you sure you want to delete @{{ lang_name }} language?</h5>
+                <h5 class="mb-3 text-center">Are you sure you want to delete "@{{ lang_name }}"" language?</h5>
                 <div class="btns d-flex w-100 justify-content-between gap-3">
                     <button class="btn btn-light w-100" @click="delete_pop_up = false; getValus(null, null, null)">Cancel</button>
                     <button class="btn btn-danger w-100" @click="deleteLang(lang_id)">delete</button>
@@ -191,8 +191,8 @@ createApp({
                     document.getElementById('errors').append(error)
                     $('#errors').fadeIn('slow')
                     this.edit_pop_up = false
+                    $('.loader').fadeOut()
                     setTimeout(() => {
-                        $('.loader').fadeOut()
                         $('#errors').fadeOut('slow')
                         location.reload();
                     }, 2000);

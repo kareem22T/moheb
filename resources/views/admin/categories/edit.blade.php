@@ -1,57 +1,31 @@
 @extends('admin.layouts.admin-layout')
 
-@section('title', 'Add Category')
-
-@section('categories_add_active', 'active')
+@section('title', 'Edit Category')
 
 @section('content')
 <h3 class="mb-5">
-    Add category
+    Edit category
 </h3>
-<div class="card" id="add_cat">
+<div class="card" id="edit_cat">
     <div class="card-body">
+        @if($category)
         <div>
-            <div class="d-flex justify-content-between gap-4">
+            <div class="w-100 mb-3 d-flex justify-content-start gap-4">
                 <div class="w-50 mb-3">
                     <label for="symbol" class="form-label">Main Name in English (for database only) *</label>
-                    <input type="text" class="form-control" id="symbol" v-model="main_name">
+                    <input type="text" class="form-control" id="symbol" v-model="main_name" >
+                    <input type="hidden" name="category_id" id="category_id" value="{{ $category->id }}">
                 </div>
-                  <!-- Swiper -->
-                <div class="swiper mySwiper w-50 mb-3 pb-5">
-                    <div class="swiper-wrapper">
-                        <div class="swiper-slide" v-for="(language, index) in languages_data" :key="index">
-                            <div>
-                                <label for="lang_name" class="form-label">Name in @{{language.name}} *</label>
-                                <input type="text" class="form-control" id="lang_name" v-model="category_translations[language.symbol]">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="swiper-button-next btn btn-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                            <path d="M9 6l6 6l-6 6"></path>
-                        </svg>
-                    </div>
-                    <div class="swiper-button-prev btn btn-secondary">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                            <path d="M15 6l-6 6l6 6"></path>
-                        </svg>
-                    </div>
-                    <div class="swiper-pagination"></div>
+                <div class="w-25" v-for="(language, index) in languages_data" :key="index">
+                    <label for="lang_name" class="form-label">Name in @{{language.name}} *</label>
+                    <input type="text" class="form-control" id="lang_name" v-model="category_translations[language.symbol]">
                 </div>
             </div>
+
             <div class="w-100 mb-3">
                 <textarea name="description" id="description" cols="30" rows="10" class="form-control" placeholder="Description" v-model="description"></textarea>
             </div>
             <div  class="d-flex justify-content-between gap-4 align-items-end flex-wrap-wrap">
-                <div class="w-50">
-                    <label for="symbol" class="form-label">Category Type *</label>
-                    <select name="cat_type" id="cat_type" class="form-control" @change="chooseCatType(this.cat_type)" v-model="cat_type" placeholder="---">
-                        <option value="0">Main Category</option>
-                        <option value="1">Sub Category</option>
-                    </select>
-                </div>
                 <div class="w-50" v-if="show_main_categories">
                     <label for="symbol" class="form-label">Choose Main Category *</label>
                     <select name="cat_type" id="cat_type" class="form-control" v-model="main_cat_id">
@@ -63,9 +37,14 @@
                         </option>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-primary w-50 form-control" style="height: fit-content" @click="add(category_translations, main_name, description, cat_type, main_cat_id)"><i class="ti ti-plus"></i> Add</button>
+                <button type="submit" class="btn btn-success w-50 form-control" style="height: fit-content" @click="save(category_translations, main_name, description)">Save</button>
             </div>
         </div>
+        @else
+        @php
+            return redirect('/admin/categories/preview');
+        @endphp
+        @endif
     </div>
 </div>
 @endsection
@@ -118,25 +97,26 @@ createApp({
   data() {
     return {
       main_name: null,
-      cat_type: null,
       main_cat_id: null,
       description: null,
       languages_data: null,
       categories_data: null,
+      category_data: null,
+      category_names: null,
       category_translations: {},
       show_main_categories: false,
+      category_id: undefined,
     }
   },
   methods: {
-    async add(category_translations, main_name, description, cat_type, main_cat_id) {
+    async save(category_translations, main_name, description) {
       $('.loader').fadeIn().css('display', 'flex')
       try {
-        const response = await axios.post(`/admin/categories/add`, {
+        const response = await axios.post(`/admin/categories/edit`, {
           category_translations: category_translations,
           main_name: main_name,
           description: description,
-          cat_type: cat_type,
-          main_cat_id: main_cat_id,
+          category_id: this.category_data.id
         },
         );
         if (response.data.status === true) {
@@ -146,6 +126,7 @@ createApp({
           error.innerHTML = response.data.message
           document.getElementById('errors').append(error)
           $('#errors').fadeIn('slow')
+          $('.loader').fadeOut()
           setTimeout(() => {
             $('#errors').fadeOut('slow')
             window.location.href = '/admin/categories'
@@ -264,6 +245,95 @@ createApp({
             console.error(error);
         }
     },
+    async getCategory() {
+        $('.loader').fadeIn().css('display', 'flex')
+        try {
+            const response = await axios.post(`/admin/category`, {
+                category_id: this.category_id
+            },
+            );
+            if (response.data.status === true) {
+                $('.loader').fadeOut()
+                this.category_data = response.data.data
+                this.main_name = this.category_data.main_name
+                this.description = this.category_data.description
+            } else {
+                $('.loader').fadeOut()
+                document.getElementById('errors').innerHTML = ''
+                $.each(response.data.errors, function (key, value) {
+                    let error = document.createElement('div')
+                    error.classList = 'error'
+                    error.innerHTML = value
+                    document.getElementById('errors').append(error)
+                });
+                $('#errors').fadeIn('slow')
+                setTimeout(() => {
+                    $('input').css('outline', 'none')
+                    $('#errors').fadeOut('slow')
+                }, 5000);
+            }
+
+        } catch (error) {
+            document.getElementById('errors').innerHTML = ''
+            let err = document.createElement('div')
+            err.classList = 'error'
+            err.innerHTML = 'server error try again later'
+            document.getElementById('errors').append(err)
+            $('#errors').fadeIn('slow')
+            $('.loader').fadeOut()
+            this.languages_data = false
+            setTimeout(() => {
+                $('#errors').fadeOut('slow')
+            }, 3500);
+
+            console.error(error);
+        }
+    },
+    async getNameTranslations() {
+        $('.loader').fadeIn().css('display', 'flex')
+        try {
+            const response = await axios.post(`/admin/category/names`, {
+                category_id: this.category_id
+            },
+            );
+            if (response.data.status === true) {
+                $('.loader').fadeOut()
+                this.category_names = response.data.data
+                Object.entries(this.category_names).forEach(([key, value]) => {
+                    this.category_translations[key] = value
+                });
+            } else {
+                $('.loader').fadeOut()
+                document.getElementById('errors').innerHTML = ''
+                $.each(response.data.errors, function (key, value) {
+                    let error = document.createElement('div')
+                    error.classList = 'error'
+                    error.innerHTML = value
+                    document.getElementById('errors').append(error)
+                });
+                $('#errors').fadeIn('slow')
+                setTimeout(() => {
+                    $('input').css('outline', 'none')
+                    $('#errors').fadeOut('slow')
+                }, 5000);
+            }
+
+        } catch (error) {
+            document.getElementById('errors').innerHTML = ''
+            let err = document.createElement('div')
+            err.classList = 'error'
+            err.innerHTML = 'server error try again later'
+            document.getElementById('errors').append(err)
+            $('#errors').fadeIn('slow')
+            $('.loader').fadeOut()
+            this.languages_data = false
+            setTimeout(() => {
+                $('#errors').fadeOut('slow')
+            }, 3500);
+
+            console.error(error);
+        }
+    },
     pushCatTranslation(id, name) {
         this.category_translations.push({
             lang_id: id,
@@ -283,6 +353,11 @@ createApp({
   created() {
     this.getLanguages()
   },
-}).mount('#add_cat')
+  mounted() {
+    this.category_id = document.getElementById('category_id').value ? document.getElementById('category_id').value : undefined;
+    this.getCategory()
+    this.getNameTranslations()
+  },
+}).mount('#edit_cat')
 </script>
 @endsection

@@ -113,6 +113,11 @@ class LanguagesController extends Controller
         }
 
         $language = Language::find($request->lang_id);
+        $language->category_names()->delete();
+        $language->term_names()->delete();
+        $language->term_titles()->delete();
+        $language->term_contents()->delete();
+        $language->term_sounds()->delete();
         $language->delete();
 
         if ($language)

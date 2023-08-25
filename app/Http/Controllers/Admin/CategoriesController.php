@@ -9,6 +9,9 @@ use App\Traits\SaveFileTrait;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Models\Language;
+use App\Models\Category;
+use App\Models\Category_Name;
+use Illuminate\Validation\Rule;
 
 class CategoriesController extends Controller
 {
@@ -25,12 +28,28 @@ class CategoriesController extends Controller
         return $this->jsonData(true, true, '', [], $languages);
     }
 
-    public function search(Request $request) {
-        $languages = Language::where('symbol', 'like', '%' . $request->search_words . '%')
-                                ->orWhere('name', 'like', '%' . $request->search_words . '%')
-                                ->paginate(10);
+    public function getMainCategories() {
+        $categories = Category::with('sub_categories')->where('cat_type', 0)->get();
         
-        return $this->jsonData(true, true, '', [], $languages);
+        return $this->jsonData(true, true, '', [], $categories);
+    }
+
+    public function getSubCategories(Request $request) {
+        $categories = Category::find($request->cat_id)->sub_categories;
+        
+        return $this->jsonData(true, true, '', [], $categories);
+    }
+
+    public function search(Request $request) {
+        $languages = Category::with('sub_categories')->where('main_name', 'like', '%' . $request->search_words . '%')
+                                ->orWhere('description', 'like', '%' . $request->search_words . '%')
+                                ->paginate(10);
+
+        $categories = Category::with('sub_categories')->whereHas('names', function ($query) use ($request) {
+            $query->where('name', 'like', '%'.$request->search_words.'%');
+        })->paginate(10);
+        
+        return $this->jsonData(true, true, '', [], !$languages->isEmpty() ? $languages : $categories);
 
     }
 
@@ -39,83 +58,157 @@ class CategoriesController extends Controller
     }
 
     public function add(Request $request) {
+        $languages = Language::all();
+        $symbols = $languages->pluck('symbol')->all();
+        // add(category_translations)
         $validator = Validator::make($request->all(), [
-            'symbol' => 'required|unique:languages,symbol',
-            'name' => 'required|unique:languages,name',
+            'main_name' => 'required|unique:categories,main_name',
+            'cat_type' => 'required',
+            'main_cat_id' => 'required_if:cat_type,1'
         ], [
-            'symbol.required' => 'please enter language symbol',
-            'name.required' => 'please enter language name',
-            'symbol.unique' => 'language symbol is already exist',
-            'name.unique' => 'language name is already exist',
+            'main_name.required' => 'Please write section main name',
+            'cat_type.required' => 'Please choose category type',
+            'main_cat_id.required_if' => 'Please choose main category for your sub category'
         ]);
 
         if ($validator->fails()) {
             return $this->jsondata(false, true, 'Add failed', [$validator->errors()->first()], []);
         }
 
-        $createLang = Language::create([
-            'symbol' => Str::upper($request->symbol),
-            'name' => Str::ucfirst($request->name)
+        $missingLanguages = array_diff($symbols, array_keys($request->category_translations));
+
+        if (!empty($missingLanguages)) {
+            return $this->jsondata(false, true, 'Add failed', ['Please enter category name in (' . Language::where('symbol', reset($missingLanguages))->first()->name . ')'], []);
+        }
+
+        $createCategory = Category::create([
+            'main_name' => Str::ucfirst($request->main_name),
+            'description' => $request->description ? $request->description : null,
+            'cat_type' => $request->cat_type,
+            'main_cat_id' => $request->main_cat_id ? $request->main_cat_id : null
         ]);
 
-        if ($createLang)
-            return $this->jsonData(true, true, 'Language has been added successfuly', [], []);
+
+        foreach ($request->category_translations as $lang => $name) {
+            $addNames = Category_Name::create([
+                'name' => $name,
+                'category_id' => $createCategory->id,
+                'language_id' => Language::where('symbol', $lang)->first()->id,
+            ]);
+        };
+
+        if ($createCategory)
+            return $this->jsonData(true, true, 'Category has been added successfuly', [], []);
     }
 
-    public function contentIndex() {
-        return view('admin.languages.content');
+    public function editIndex ($cat_id) {
+        $category = Category::find($cat_id);
+        return view('admin.categories.edit')->with(compact('category'));
+    }    
+
+    public function getCategoryById(Request $request) {
+        $category = Category::find($request->category_id);
+        
+        return $this->jsonData(true, true, '', [], $category);
     }
 
-    public function updateContentFile(Request $request) {
+    public function getCategoryNames(Request $request) {
+        $languages = Language::all();
+        $symbols = $languages->pluck('symbol')->all();
+        
+        $category_names = Category::find($request->category_id)->names;
+        $category_names_key_value = [];
+
+        if ($category_names)
+            foreach ($category_names as $key => $cat_name) {
+                $category_names_key_value[$cat_name->language->symbol] = $cat_name->name;
+            };
+
+        if ($category_names_key_value) :
+            $missingLanguages = array_diff($symbols, array_keys($category_names_key_value));
+            if ($missingLanguages)
+                foreach ($missingLanguages as $lang) {
+                    $category_names_key_value[$lang] = null;
+                }
+        endif;
+
+        return $this->jsonData(true, true, '', [], $category_names_key_value);
+    }
+
+    public function editCategory(Request $request) {
+        $languages = Language::all();
+        $symbols = $languages->pluck('symbol')->all();
+        $category = Category::find($request->category_id);
+
         $validator = Validator::make($request->all(), [
-            'file' => 'required|mimes:json',
+            'main_name' => ['required', Rule::unique('categories')->ignore($category->id)],
         ], [
-            'file.required' => 'Please upload the content json file',
-            'file.mimes' => 'Just json file is accepted',
+            'main_name.required' => 'Please write section main name',
         ]);
 
         if ($validator->fails()) {
-            return $this->jsondata(false, true, 'update failed', [$validator->errors()->first()], []);
+            return $this->jsondata(false, true, 'Add failed', [$validator->errors()->first()], []);
         }
 
-        $update = $this->saveFile($request->file, 'json', $request->file_name);
-        if ($update)
-            return $this->jsonData(true, true, $request->file_name . ' content has been Updated successfuly', [], []);
-    }
+        $missingLanguages = array_diff($symbols, array_keys($request->category_translations));
 
-    public function editLang(Request $request) {
-        $validator = Validator::make($request->all(), [
-            'lang_id' => 'required',
-            'lang_symbol' => 'required',
-            'lang_name' => 'required',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->jsondata(false, true, 'Edit failed', [$validator->errors()->first()], []);
+        if (!empty($missingLanguages)) {
+            return $this->jsondata(false, true, 'Add failed', ['Please enter category name in (' . Language::where('symbol', reset($missingLanguages))->first()->name . ')'], []);
         }
 
-        $language = Language::find($request->lang_id);
-        $language->symbol = Str::upper($request->lang_symbol);
-        $language->name = Str::ucfirst($request->lang_name);
-        $language->save();
+        $category->main_name = Str::ucfirst($request->main_name);
+        $category->description = $request->description ? $request->description : null;
+        $category->save();
 
-        if ($language)
-            return $this->jsonData(true, true, $request->file_name . ' Language has been updated succussfuly', [], []);
+        foreach ($request->category_translations as $lang => $name) {
+            $lang_id = Language::where('symbol', $lang)->first()->id;
+            $cat_name = Category_Name::where('category_id', $category->id)->where('language_id', $lang_id)->first();
+            if ($cat_name) {
+                $cat_name->name = $name;
+                $cat_name->save();
+            } else {
+                $addNames = Category_Name::create([
+                    'name' => $name,
+                    'category_id' => $category->id,
+                    'language_id' => Language::where('symbol', $lang)->first()->id,
+                ]);
+            }
+        };
+
+        if ($category)
+            return $this->jsonData(true, true, 'Category has been Updated successfuly', [], []);
     }
 
     public function delete(Request $request) {
         $validator = Validator::make($request->all(), [
-            'lang_id' => 'required',
+            'cat_id' => 'required',
         ]);
 
         if ($validator->fails()) {
             return $this->jsondata(false, true, 'Edit failed', [$validator->errors()->first()], []);
         }
 
-        $language = Language::find($request->lang_id);
-        $language->delete();
+        $category = Category::find($request->cat_id);
+        foreach ($category->terms() as $term) {
+            $term->names()->delete();
+            $term->titles()->delete();
+            $term->contents()->delete();
+            $term->sounds()->delete();
+            $term->delete();
+        }
+        foreach ($category->sub_categories() as $subcategory) {
+            foreach ($subcategory->terms() as $term) {
+                $term->names()->delete();
+                $term->titles()->delete();
+                $term->contents()->delete();
+                $term->sounds()->delete();
+                $term->delete();
+            }
+            $subcategory->delete();
+        }
+        $category->delete();
 
-        if ($language)
-            return $this->jsonData(true, true, $request->file_name . ' Language has been deleted succussfuly', [], []);
+        if ($category)
+            return $this->jsonData(true, true, $request->file_name . 'Category has been deleted succussfuly', [], []);
     }
 }
